@@ -1,0 +1,44 @@
+name: Daily LaughLab Scripts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 12 * * *" # 18:00 India Standard Time
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python main.py
+
+      - name: Commit generated scripts
+        run: |
+          if [ -n "$(git status --porcelain output/)" ]; then
+            git config user.name "LaughLab Script Bot"
+            git config user.email "actions@github.com"
+            git add output/
+            git commit -m "Generate daily LaughLab scripts"
+            git push
+          else
+            echo "No new output to commit."
+          fi
