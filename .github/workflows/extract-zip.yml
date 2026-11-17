@@ -1,0 +1,81 @@
+name: Extract LaughLab starter
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract starter ZIP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          archive = Path("laughlab_ai_starter.zip")
+
+          if not archive.exists():
+              raise SystemExit("Starter ZIP not found.")
+
+          with ZipFile(archive) as z:
+              names = [
+                  n for n in z.namelist()
+                  if n and not n.startswith("__MACOSX/")
+              ]
+
+              prefixes = {
+                  n.split("/", 1)[0]
+                  for n in names if "/" in n
+              }
+
+              strip_prefix = None
+              if len(prefixes) == 1:
+                  prefix = next(iter(prefixes))
+                  if all(n.startswith(prefix + "/") for n in names):
+                      strip_prefix = prefix
+
+              for info in z.infolist():
+                  name = info.filename
+
+                  if not name or name.startswith("__MACOSX/"):
+                      continue
+
+                  parts = Path(name).parts
+
+                  if strip_prefix and parts and parts[0] == strip_prefix:
+                      parts = parts[1:]
+
+                  if not parts or ".." in parts:
+                      continue
+
+                  destination = Path(*parts)
+
+                  if info.is_dir():
+                      destination.mkdir(parents=True, exist_ok=True)
+                  else:
+                      destination.parent.mkdir(parents=True, exist_ok=True)
+                      destination.write_bytes(z.read(info))
+
+          print("LaughLab starter extracted.")
+          PY
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Extract LaughLab AI starter files"
+            git push
+          fi
